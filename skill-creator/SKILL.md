@@ -1,22 +1,82 @@
 ---
 name: skill-creator
-description: 帮助用户创建符合 Agent Skills 规范的新技能。支持自动模式（快速生成）和分步引导模式（交互式创建）。当用户想要创建、生成或制作新的 Agent Skill 时使用此技能。
+description: 帮助用户创建符合多种规范标准的新技能。支持 AgentSkills、Claude Code、Codex 三种规范。支持自动模式（快速生成）和分步引导模式（交互式创建）。当用户想要创建、生成或制作新的 Agent Skill 时使用此技能。
 license: MIT
 metadata:
   author: tony
-  version: "1.0.0"
+  version: "2.0.0"
   category: development
 ---
 
 # Skill Creator - 技能创建助手
 
-这个技能帮助您创建符合 Agent Skills 规范的新技能。
+这个技能帮助您创建符合多种规范标准(AgentSkills、Claude Code、Codex)的新技能。
 
 ## 使用场景
 
 - 用户想要创建一个新的 Agent Skill
 - 用户需要生成技能模板
 - 用户想要将现有的工作流程转换为技能
+- 用户需要为特定平台(AgentSkills/Claude Code/Codex)创建技能
+
+## 支持的规范标准
+
+本技能支持三种主流 Agent Skills 规范标准,每种标准有其特定的路径约定和字段限制:
+
+### 1. AgentSkills 标准 (默认)
+
+**适用平台**: 开放标准,适用于所有兼容 AgentSkills 规范的平台
+
+**技能保存路径**:
+- **用户级**: `~/.agent-skills/`
+- **项目级**: `<project-root>/.agent-skills/`
+- **工作区级**: `<workspace-root>/.agent-skills/`
+- **系统级**:
+  - Windows: `C:\ProgramData\agent-skills\`
+  - Unix/Linux: `/usr/local/share/agent-skills/`
+
+**字段限制**:
+- `name`: 1-64字符,仅小写字母、数字和连字符
+- `description`: 1-1024字符
+
+**参考文档**: `doc/AgentSkills.md`
+
+### 2. Claude Code 标准
+
+**适用平台**: Claude Code CLI 和 Claude.ai
+
+**技能保存路径**:
+- **个人级**: `~/.claude/skills/`
+- **项目级**: `<project-root>/.claude/skills/`
+- **企业级**: 通过托管设置管理
+- **插件级**: 插件捆绑提供
+
+**字段限制**:
+- `name`: 1-64字符,仅小写字母、数字和连字符
+- `description`: 1-1024字符
+- 支持额外字段: `allowed-tools`, `model`, `context`, `agent`, `hooks`, `user-invocable`
+
+**参考文档**: `doc/ClaudeSkills.md`
+
+### 3. Codex 标准
+
+**适用平台**: OpenAI Codex 和相关工具
+
+**技能保存路径** (按优先级):
+- **仓库级**:
+  - `$CWD/.codex/skills/` (当前工作目录)
+  - `$CWD/../.codex/skills/` (父目录)
+  - `$REPO_ROOT/.codex/skills/` (仓库根目录)
+- **用户级**: `~/.codex/skills/` 或 `$CODEX_HOME/skills`
+- **管理员级**: `/etc/codex/skills`
+- **系统级**: Codex 内置
+
+**字段限制**:
+- `name`: 最多100字符,非空
+- `description`: 最多500字符,非空
+- 简化的 metadata 结构
+
+**参考文档**: `doc/CodexSkills.md`
 
 ## 两种创建模式
 
@@ -51,43 +111,52 @@ metadata:
 
 **工作流程**：
 
-**步骤 1: 收集基本信息**
-- 询问技能名称（提示规范要求）
-- 验证名称格式：
-  - 1-64 字符
-  - 仅小写字母、数字和连字符
-  - 不能以连字符开头或结尾
-  - 不能包含连续连字符
+**步骤 1: 选择规范标准**
+- 询问用户选择目标规范:
+  1. AgentSkills 标准 (默认,开放标准)
+  2. Claude Code 标准 (适用于 Claude)
+  3. Codex 标准 (适用于 OpenAI Codex)
+- 显示所选规范的字段限制和路径约定
+- 根据所选规范调整后续验证规则
+
+**步骤 2: 收集基本信息**
+- 询问技能名称（提示所选规范的要求）
+- 根据所选规范验证名称格式：
+  - **AgentSkills/Claude**: 1-64字符,仅小写字母、数字和连字符,不能以连字符开头或结尾,不能包含连续连字符
+  - **Codex**: 最多100字符,非空,单行
 - 如果不符合规范，提供修正建议
 
-**步骤 2: 技能描述**
+**步骤 3: 技能描述**
 - 询问技能的功能描述
 - 提示应包含：
   - 技能的作用（做什么）
   - 使用场景（何时使用）
   - 关键词（帮助代理识别）
-- 验证描述长度（1-1024 字符）
+- 根据所选规范验证描述长度：
+  - **AgentSkills/Claude**: 1-1024字符
+  - **Codex**: 最多500字符
 
-**步骤 3: 可选信息**
+**步骤 4: 可选信息**
 询问是否需要添加：
 - 许可证信息（license）
 - 兼容性要求（compatibility）
 - 自定义元数据（metadata）
-- 预批准工具列表（allowed-tools）
+- 预批准工具列表（allowed-tools, Claude 标准专用）
+- 其他 Claude 专用字段（model, context, agent, hooks 等）
 
-**步骤 4: 附加资源**
+**步骤 5: 附加资源**
 询问是否需要：
 - 脚本文件（scripts/）- 询问脚本语言和功能
 - 参考文档（references/）- 询问需要哪些参考材料
 - 资源文件（assets/）- 询问需要哪些模板或数据
 
-**步骤 5: 生成结构**
-- 创建技能目录
-- 生成 SKILL.md 文件
+**步骤 6: 生成结构**
+- 创建技能目录（根据所选规范确定路径）
+- 生成 SKILL.md 文件（根据所选规范调整字段）
 - 创建所需的子目录
 - 生成示例文件（如果用户选择）
 
-**步骤 6: 验证和确认**
+**步骤 7: 验证和确认**
 - 显示生成的目录结构
 - 显示 SKILL.md 内容摘要
 - 询问是否需要修改

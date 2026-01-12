@@ -2,7 +2,7 @@
 """
 Skill Creator Script
 
-这个脚本帮助自动创建符合 Agent Skills 规范的技能结构。
+这个脚本帮助自动创建符合多种规范标准(AgentSkills、Claude Code、Codex)的技能结构。
 """
 
 import os
@@ -10,28 +10,91 @@ import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from enum import Enum
 
 
-def validate_skill_name(name: str) -> Tuple[bool, str]:
+class SkillStandard(Enum):
+    """技能规范标准"""
+    AGENTSKILLS = "agentskills"
+    CLAUDE = "claude"
+    CODEX = "codex"
+
+
+# 规范配置
+STANDARD_CONFIG = {
+    SkillStandard.AGENTSKILLS: {
+        "name": "AgentSkills",
+        "display_name": "AgentSkills 标准 (开放标准)",
+        "name_max_length": 64,
+        "name_pattern": r'^[a-z0-9-]+$',
+        "name_strict": True,  # 是否严格检查连字符
+        "description_max_length": 1024,
+        "paths": {
+            "user": "~/.agent-skills/",
+            "project": ".agent-skills/",
+            "system_windows": "C:/ProgramData/agent-skills",
+            "system_unix": "/usr/local/share/agent-skills"
+        }
+    },
+    SkillStandard.CLAUDE: {
+        "name": "Claude",
+        "display_name": "Claude Code 标准",
+        "name_max_length": 64,
+        "name_pattern": r'^[a-z0-9-]+$',
+        "name_strict": True,
+        "description_max_length": 1024,
+        "paths": {
+            "user": "~/.claude/skills/",
+            "project": ".claude/skills/",
+            "system_windows": None,  # Claude 不使用系统级路径
+            "system_unix": None
+        }
+    },
+    SkillStandard.CODEX: {
+        "name": "Codex",
+        "display_name": "OpenAI Codex 标准",
+        "name_max_length": 100,
+        "name_pattern": None,  # Codex 没有严格的名称模式
+        "name_strict": False,
+        "description_max_length": 500,
+        "paths": {
+            "user": "~/.codex/skills/",
+            "project": ".codex/skills/",
+            "system_windows": None,
+            "system_unix": "/etc/codex/skills"
+        }
+    }
+}
+
+
+def validate_skill_name(name: str, standard: SkillStandard = SkillStandard.AGENTSKILLS) -> Tuple[bool, str]:
     """
-    验证技能名称是否符合规范
+    根据指定规范验证技能名称
 
     返回: (是否有效, 错误消息或空字符串)
     """
+    config = STANDARD_CONFIG[standard]
+
     if len(name) < 1:
         return False, "名称不能为空"
-    if len(name) > 64:
-        return False, f"名称过长 ({len(name)} 字符)，最多 64 字符"
 
-    if not re.match(r'^[a-z0-9-]+$', name):
-        return False, "名称只能包含小写字母、数字和连字符"
+    max_length = config["name_max_length"]
+    if len(name) > max_length:
+        return False, f"名称过长 ({len(name)} 字符)，最多 {max_length} 字符"
 
-    if name.startswith('-'):
-        return False, "名称不能以连字符开头"
-    if name.endswith('-'):
-        return False, "名称不能以连字符结尾"
-    if '--' in name:
-        return False, "名称不能包含连续连字符"
+    # Codex 标准没有严格的名称模式
+    if config["name_pattern"] is not None:
+        if not re.match(config["name_pattern"], name):
+            return False, "名称只能包含小写字母、数字和连字符"
+
+    # 严格检查连字符(仅 AgentSkills 和 Claude)
+    if config["name_strict"]:
+        if name.startswith('-'):
+            return False, "名称不能以连字符开头"
+        if name.endswith('-'):
+            return False, "名称不能以连字符结尾"
+        if '--' in name:
+            return False, "名称不能包含连续连字符"
 
     return True, ""
 
@@ -57,12 +120,17 @@ def suggest_valid_name(invalid_name: str) -> str:
     return name
 
 
-def validate_description(description: str) -> Tuple[bool, str]:
-    """验证描述是否符合规范"""
+def validate_description(description: str, standard: SkillStandard = SkillStandard.AGENTSKILLS) -> Tuple[bool, str]:
+    """根据指定规范验证描述"""
     if len(description) < 1:
         return False, "描述不能为空"
-    if len(description) > 1024:
-        return False, f"描述过长 ({len(description)} 字符)，最多 1024 字符"
+
+    config = STANDARD_CONFIG[standard]
+    max_length = config["description_max_length"]
+
+    if len(description) > max_length:
+        return False, f"描述过长 ({len(description)} 字符)，最多 {max_length} 字符"
+
     return True, ""
 
 
@@ -142,6 +210,7 @@ def create_skill_structure(
     base_path: str,
     name: str,
     description: str,
+    standard: SkillStandard = SkillStandard.AGENTSKILLS,
     include_scripts: bool = False,
     include_references: bool = False,
     include_assets: bool = False,
@@ -153,12 +222,12 @@ def create_skill_structure(
     返回: (是否成功, 消息)
     """
     # 验证名称
-    valid, error = validate_skill_name(name)
+    valid, error = validate_skill_name(name, standard)
     if not valid:
         return False, f"名称验证失败: {error}"
 
     # 验证描述
-    valid, error = validate_description(description)
+    valid, error = validate_description(description, standard)
     if not valid:
         return False, f"描述验证失败: {error}"
 
@@ -209,10 +278,45 @@ def interactive_create():
     """交互式创建技能"""
     print("=== Agent Skill Creator ===\n")
 
-    # 获取技能名称
+    # 步骤 1: 选择规范标准
+    print("步骤 1: 选择规范标准")
+    print("1. AgentSkills 标准 (默认,开放标准)")
+    print("2. Claude Code 标准 (适用于 Claude)")
+    print("3. Codex 标准 (适用于 OpenAI Codex)")
+    print()
+
+    standard_choice = input("请选择规范标准 (1-3, 默认 1): ").strip()
+    if not standard_choice:
+        standard_choice = "1"
+
+    standard_map = {
+        "1": SkillStandard.AGENTSKILLS,
+        "2": SkillStandard.CLAUDE,
+        "3": SkillStandard.CODEX
+    }
+
+    if standard_choice not in standard_map:
+        print("❌ 无效的选择，使用默认值: AgentSkills")
+        standard = SkillStandard.AGENTSKILLS
+    else:
+        standard = standard_map[standard_choice]
+
+    config = STANDARD_CONFIG[standard]
+    print(f"\n✓ 已选择: {config['display_name']}")
+    print(f"  - 名称最大长度: {config['name_max_length']} 字符")
+    print(f"  - 描述最大长度: {config['description_max_length']} 字符")
+    print()
+
+    # 步骤 2: 获取技能名称
+    print(f"步骤 2: 技能名称")
     while True:
-        name_input = input("技能名称 (小写字母、数字和连字符): ").strip()
-        valid, error = validate_skill_name(name_input)
+        if config['name_pattern']:
+            prompt = f"技能名称 (小写字母、数字和连字符,最多{config['name_max_length']}字符): "
+        else:
+            prompt = f"技能名称 (最多{config['name_max_length']}字符): "
+
+        name_input = input(prompt).strip()
+        valid, error = validate_skill_name(name_input, standard)
 
         if valid:
             name = name_input
@@ -226,10 +330,11 @@ def interactive_create():
                     name = suggestion
                     break
 
-    # 获取描述
+    # 步骤 3: 获取描述
+    print(f"\n步骤 3: 技能描述")
     while True:
-        description = input("\n技能描述 (1-1024 字符): ").strip()
-        valid, error = validate_description(description)
+        description = input(f"技能描述 (1-{config['description_max_length']} 字符): ").strip()
+        valid, error = validate_description(description, standard)
 
         if valid:
             break
@@ -264,10 +369,12 @@ def interactive_create():
 
     # 创建技能
     print("\n创建技能中...")
+    print(f"规范标准: {config['display_name']}")
     success, message = create_skill_structure(
         base_path=base_path,
         name=name,
         description=description,
+        standard=standard,
         license=license,
         compatibility=compatibility,
         metadata=metadata if metadata else None,

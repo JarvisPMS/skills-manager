@@ -4,13 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个 **Agent Skills 管理工具集**,包含三个独立技能用于创建、安装和列出 Agent Skills。每个技能都是一个自包含的模块,遵循 [Agent Skills 规范](https://agentskills.io)。
+这是一个 **Agent Skills 管理工具集**,包含三个独立技能用于创建、安装和列出 Agent Skills。每个技能都是一个自包含的模块,支持多种规范标准。
 
 ### 核心组件
 
-1. **skill-creator** - 创建符合规范的新技能
-2. **skill-installer** - 安装技能到不同级别目录
-3. **skill-lister** - 列出和查看已安装的技能
+1. **skill-creator** - 创建符合多种规范标准的新技能
+2. **skill-installer** - 安装技能到不同规范标准和级别目录
+3. **skill-lister** - 列出和查看不同规范标准的已安装技能
+
+### 支持的规范标准
+
+项目支持三种主流 Agent Skills 规范标准:
+
+1. **AgentSkills 标准** - 开放标准,适用于所有兼容平台
+   - 路径: `~/.agent-skills/`, `.agent-skills/`, `/usr/local/share/agent-skills/`
+
+2. **Claude Code 标准** - Claude Code CLI 和 Claude.ai
+   - 路径: `~/.claude/skills/`, `.claude/skills/`
+
+3. **Codex 标准** - OpenAI Codex 和相关工具
+   - 路径: `~/.codex/skills/`, `.codex/skills/`, `/etc/codex/skills`
 
 ## 常用命令
 
@@ -39,9 +52,31 @@ pip install pyyaml
 
 ## 架构要点
 
-### Agent Skills 规范
+### 多规范支持架构
 
-所有技能必须遵循以下核心规范:
+项目采用统一的架构支持多种规范标准,主要差异在于:
+
+#### 1. 路径差异
+
+不同规范使用不同的默认路径:
+
+| 级别 | AgentSkills | Claude Code | Codex |
+|------|-------------|-------------|-------|
+| 用户级 | `~/.agent-skills/` | `~/.claude/skills/` | `~/.codex/skills/` |
+| 项目级 | `.agent-skills/` | `.claude/skills/` | `.codex/skills/` |
+| 系统级 | `/usr/local/share/agent-skills/` | N/A | `/etc/codex/skills` |
+
+#### 2. 字段限制差异
+
+| 字段 | AgentSkills | Claude | Codex |
+|------|-------------|--------|-------|
+| name 最大长度 | 64字符 | 64字符 | 100字符 |
+| description 最大长度 | 1024字符 | 1024字符 | 500字符 |
+| 名称模式 | 严格 (小写+连字符) | 严格 | 宽松 |
+
+### Agent Skills 基本规范
+
+所有技能必须遵循以下核心结构:
 
 **必需结构:**
 ```
@@ -50,8 +85,8 @@ skill-name/
 ```
 
 **SKILL.md frontmatter 必需字段:**
-- `name`: 技能名称 (1-64字符,仅小写字母、数字、连字符)
-- `description`: 功能描述 (1-1024字符)
+- `name`: 技能名称 (根据规范有不同限制)
+- `description`: 功能描述 (根据规范有不同限制)
 
 **可选字段:**
 - `license`: 许可证

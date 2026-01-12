@@ -2,7 +2,8 @@
 """
 Skill Installer Script
 
-这个脚本帮助将 Agent Skills 安装到不同级别的目录。
+这个脚本帮助将 Agent Skills 安装到不同规范标准和级别的目录。
+支持 AgentSkills、Claude Code、Codex 三种规范。
 """
 
 import os
@@ -12,7 +13,44 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from enum import Enum
 import yaml
+
+
+class SkillStandard(Enum):
+    """技能规范标准"""
+    AGENTSKILLS = "agentskills"
+    CLAUDE = "claude"
+    CODEX = "codex"
+
+
+# 规范配置
+STANDARD_CONFIG = {
+    SkillStandard.AGENTSKILLS: {
+        "name": "AgentSkills",
+        "display_name": "AgentSkills 标准",
+        "user_dir": ".agent-skills",
+        "project_dir": ".agent-skills",
+        "system_windows": "C:/ProgramData/agent-skills",
+        "system_unix": "/usr/local/share/agent-skills"
+    },
+    SkillStandard.CLAUDE: {
+        "name": "Claude",
+        "display_name": "Claude Code 标准",
+        "user_dir": ".claude/skills",
+        "project_dir": ".claude/skills",
+        "system_windows": None,
+        "system_unix": None
+    },
+    SkillStandard.CODEX: {
+        "name": "Codex",
+        "display_name": "OpenAI Codex 标准",
+        "user_dir": ".codex/skills",
+        "project_dir": ".codex/skills",
+        "system_windows": None,
+        "system_unix": "/etc/codex/skills"
+    }
+}
 
 
 class SkillInstaller:
@@ -20,7 +58,9 @@ class SkillInstaller:
 
     INSTALL_LEVELS = ['user', 'project', 'workspace', 'system']
 
-    def __init__(self):
+    def __init__(self, standard: SkillStandard = SkillStandard.AGENTSKILLS):
+        self.standard = standard
+        self.standard_config = STANDARD_CONFIG[standard]
         self.config = self.load_config()
 
     def load_config(self) -> Dict:
@@ -39,17 +79,24 @@ class SkillInstaller:
         }
 
     def get_user_skills_dir(self) -> Path:
-        """获取用户级技能目录"""
-        if 'AGENT_SKILLS_USER_DIR' in os.environ:
-            return Path(os.environ['AGENT_SKILLS_USER_DIR'])
+        """获取用户级技能目录(根据规范)"""
+        # 检查环境变量覆盖
+        env_var_map = {
+            SkillStandard.AGENTSKILLS: 'AGENT_SKILLS_USER_DIR',
+            SkillStandard.CLAUDE: 'CLAUDE_SKILLS_DIR',
+            SkillStandard.CODEX: 'CODEX_HOME'
+        }
 
-        if os.name == 'nt':  # Windows
-            return Path.home() / '.agent-skills'
-        else:  # macOS/Linux
-            xdg_data_home = os.environ.get('XDG_DATA_HOME')
-            if xdg_data_home:
-                return Path(xdg_data_home) / 'agent-skills'
-            return Path.home() / '.agent-skills'
+        env_var = env_var_map.get(self.standard)
+        if env_var and env_var in os.environ:
+            base_path = Path(os.environ[env_var])
+            if self.standard == SkillStandard.CODEX:
+                return base_path / 'skills'
+            return base_path
+
+        # 使用规范默认路径
+        user_dir = self.standard_config["user_dir"]
+        return Path.home() / user_dir
 
     def find_project_root(self, start_path: Optional[Path] = None) -> Optional[Path]:
         """查找项目根目录"""
@@ -70,21 +117,28 @@ class SkillInstaller:
         return None
 
     def get_project_skills_dir(self) -> Optional[Path]:
-        """获取项目级技能目录"""
+        """获取项目级技能目录(根据规范)"""
         project_root = self.find_project_root()
         if project_root:
-            return project_root / '.agent-skills'
+            project_dir = self.standard_config["project_dir"]
+            return project_root / project_dir
         return None
 
     def get_system_skills_dir(self) -> Path:
-        """获取系统级技能目录"""
+        """获取系统级技能目录(根据规范)"""
         if 'AGENT_SKILLS_SYSTEM_DIR' in os.environ:
             return Path(os.environ['AGENT_SKILLS_SYSTEM_DIR'])
 
         if os.name == 'nt':  # Windows
-            return Path('C:/ProgramData/agent-skills')
+            system_path = self.standard_config["system_windows"]
+            if system_path:
+                return Path(system_path)
+            raise ValueError(f"{self.standard_config['display_name']} 不支持 Windows 系统级安装")
         else:  # macOS/Linux
-            return Path('/usr/local/share/agent-skills')
+            system_path = self.standard_config["system_unix"]
+            if system_path:
+                return Path(system_path)
+            raise ValueError(f"{self.standard_config['display_name']} 不支持 Unix 系统级安装")
 
     def get_install_path(self, level: str, skill_name: str) -> Path:
         """根据级别获取安装路径"""
@@ -288,10 +342,35 @@ def interactive_install():
     """交互式安装"""
     print("=== Agent Skill Installer ===\n")
 
-    installer = SkillInstaller()
+    # 步骤 1: 选择规范标准
+    print("步骤 1: 选择规范标准")
+    print("1. AgentSkills 标准 (默认,开放标准)")
+    print("2. Claude Code 标准 (适用于 Claude)")
+    print("3. Codex 标准 (适用于 OpenAI Codex)")
+    print()
 
-    # 步骤 1: 获取技能源
-    print("步骤 1: 技能源")
+    standard_choice = input("请选择规范标准 (1-3, 默认 1): ").strip()
+    if not standard_choice:
+        standard_choice = "1"
+
+    standard_map = {
+        "1": SkillStandard.AGENTSKILLS,
+        "2": SkillStandard.CLAUDE,
+        "3": SkillStandard.CODEX
+    }
+
+    if standard_choice not in standard_map:
+        print("❌ 无效的选择，使用默认值: AgentSkills")
+        standard = SkillStandard.AGENTSKILLS
+    else:
+        standard = standard_map[standard_choice]
+
+    installer = SkillInstaller(standard=standard)
+    config = STANDARD_CONFIG[standard]
+    print(f"\n✓ 已选择: {config['display_name']}\n")
+
+    # 步骤 2: 获取技能源
+    print("步骤 2: 技能源")
     print("1. 本地路径")
     print("2. Git 仓库 URL")
     source_type = input("请选择技能源类型 (1/2): ").strip()

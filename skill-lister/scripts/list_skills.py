@@ -3,6 +3,7 @@
 Skill Lister Script
 
 列出和查看已安装的 Agent Skills。
+支持 AgentSkills、Claude Code、Codex 三种规范。
 """
 
 import os
@@ -12,8 +13,43 @@ import json
 import argparse
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from enum import Enum
 import yaml
 from datetime import datetime
+
+
+class SkillStandard(Enum):
+    """技能规范标准"""
+    AGENTSKILLS = "agentskills"
+    CLAUDE = "claude"
+    CODEX = "codex"
+    ALL = "all"  # 扫描所有规范
+
+
+# 规范配置
+STANDARD_CONFIG = {
+    SkillStandard.AGENTSKILLS: {
+        "name": "AgentSkills",
+        "user_dir": ".agent-skills",
+        "project_dir": ".agent-skills",
+        "system_windows": "C:/ProgramData/agent-skills",
+        "system_unix": "/usr/local/share/agent-skills"
+    },
+    SkillStandard.CLAUDE: {
+        "name": "Claude",
+        "user_dir": ".claude/skills",
+        "project_dir": ".claude/skills",
+        "system_windows": None,
+        "system_unix": None
+    },
+    SkillStandard.CODEX: {
+        "name": "Codex",
+        "user_dir": ".codex/skills",
+        "project_dir": ".codex/skills",
+        "system_windows": None,
+        "system_unix": "/etc/codex/skills"
+    }
+}
 
 
 class SkillInfo:
@@ -130,7 +166,8 @@ class SkillInfo:
 class SkillLister:
     """技能列表器"""
 
-    def __init__(self):
+    def __init__(self, standard: SkillStandard = SkillStandard.ALL):
+        self.standard = standard
         self.skills = []
         self.level_colors = {
             'user': '\033[94m',      # 蓝色
@@ -141,18 +178,14 @@ class SkillLister:
         self.reset_color = '\033[0m'
         self.use_color = True
 
-    def get_user_skills_dir(self) -> Optional[Path]:
-        """获取用户级技能目录"""
-        if 'AGENT_SKILLS_USER_DIR' in os.environ:
-            return Path(os.environ['AGENT_SKILLS_USER_DIR'])
+    def get_user_skills_dir(self, std: SkillStandard) -> Optional[Path]:
+        """获取用户级技能目录(根据规范)"""
+        if std == SkillStandard.ALL:
+            return None
 
-        if os.name == 'nt':  # Windows
-            return Path.home() / '.agent-skills'
-        else:  # macOS/Linux
-            xdg_data_home = os.environ.get('XDG_DATA_HOME')
-            if xdg_data_home:
-                return Path(xdg_data_home) / 'agent-skills'
-            return Path.home() / '.agent-skills'
+        config = STANDARD_CONFIG[std]
+        user_dir = config["user_dir"]
+        return Path.home() / user_dir
 
     def find_project_root(self, start_path: Optional[Path] = None) -> Optional[Path]:
         """查找项目根目录"""
@@ -195,30 +228,38 @@ class SkillLister:
         """获取所有技能目录（路径, 级别）"""
         dirs = []
 
-        # 用户级
-        user_dir = self.get_user_skills_dir()
-        if user_dir and user_dir.exists():
-            dirs.append((user_dir, 'user'))
+        # 确定要扫描的规范
+        if self.standard == SkillStandard.ALL:
+            standards = [SkillStandard.AGENTSKILLS, SkillStandard.CLAUDE, SkillStandard.CODEX]
+        else:
+            standards = [self.standard]
 
-        # 项目级
-        project_dir = self.get_project_skills_dir()
-        if project_dir:
-            dirs.append((project_dir, 'project'))
+        # 扫描每个规范的路径
+        for std in standards:
+            config = STANDARD_CONFIG[std]
 
-        # 系统级
-        system_dir = self.get_system_skills_dir()
-        if system_dir and system_dir.exists():
-            dirs.append((system_dir, 'system'))
+            # 用户级
+            user_dir = self.get_user_skills_dir(std)
+            if user_dir and user_dir.exists():
+                dirs.append((user_dir, f'user-{config["name"]}'))
 
-        # 环境变量额外路径
-        if 'AGENT_SKILLS_PATH' in os.environ:
-            extra_paths = os.environ['AGENT_SKILLS_PATH'].split(
-                ';' if os.name == 'nt' else ':'
-            )
-            for p in extra_paths:
-                path = Path(p)
-                if path.exists():
-                    dirs.append((path, 'custom'))
+            # 项目级
+            project_root = self.find_project_root()
+            if project_root:
+                project_dir = project_root / config["project_dir"]
+                if project_dir.exists():
+                    dirs.append((project_dir, f'project-{config["name"]}'))
+
+            # 系统级
+            if os.name == 'nt':
+                sys_path = config.get("system_windows")
+            else:
+                sys_path = config.get("system_unix")
+
+            if sys_path:
+                sys_dir = Path(sys_path)
+                if sys_dir.exists():
+                    dirs.append((sys_dir, f'system-{config["name"]}'))
 
         return dirs
 

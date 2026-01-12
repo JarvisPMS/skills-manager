@@ -1,22 +1,45 @@
 ---
 name: skill-installer
-description: 安装 Agent Skills 到不同级别的技能目录。支持从本地路径或 Git 仓库安装技能。当用户想要安装、部署或添加新技能时使用。支持用户级、项目级和系统级安装。
+description: 安装 Agent Skills 到不同规范标准和级别的技能目录。支持 AgentSkills、Claude Code、Codex 三种规范。支持从本地路径或 Git 仓库安装技能。当用户想要安装、部署或添加新技能时使用。
 license: MIT
 metadata:
   author: tony
-  version: "1.0.0"
+  version: "2.0.0"
   category: development
 ---
 
 # Skill Installer - 技能安装助手
 
-这个技能帮助您将 Agent Skills 安装到适当的位置，支持不同级别的安装。
+这个技能帮助您将 Agent Skills 安装到适当的位置,支持多种规范标准(AgentSkills、Claude Code、Codex)和不同级别的安装。
 
 ## 使用场景
 
 - 用户想要安装一个新的技能
 - 用户需要从 Git 仓库或本地路径部署技能
 - 用户想要将技能安装到特定级别（用户级/项目级/系统级）
+- 用户需要为特定平台(AgentSkills/Claude Code/Codex)安装技能
+
+## 支持的规范标准
+
+本技能支持三种主流 Agent Skills 规范标准,每种标准有不同的安装路径:
+
+### 1. AgentSkills 标准
+- **用户级**: `~/.agent-skills/`
+- **项目级**: `<project-root>/.agent-skills/`
+- **工作区级**: `<workspace-root>/.agent-skills/`
+- **系统级**: `C:\ProgramData\agent-skills\` (Windows) 或 `/usr/local/share/agent-skills/` (Unix)
+
+### 2. Claude Code 标准
+- **个人级**: `~/.claude/skills/`
+- **项目级**: `<project-root>/.claude/skills/`
+- **企业级**: 通过托管设置管理
+- **插件级**: 插件捆绑提供
+
+### 3. Codex 标准
+- **用户级**: `~/.codex/skills/` 或 `$CODEX_HOME/skills`
+- **仓库级**: `<repo-root>/.codex/skills/`
+- **管理员级**: `/etc/codex/skills` (Unix)
+- **系统级**: Codex 内置
 
 ## 安装级别说明
 
@@ -105,7 +128,16 @@ my-project/
 
 ## 安装工作流程
 
-### 步骤 1: 确定技能源
+### 步骤 1: 选择规范标准
+
+询问用户选择目标规范:
+- AgentSkills 标准 (默认,开放标准)
+- Claude Code 标准 (适用于 Claude)
+- Codex 标准 (适用于 OpenAI Codex)
+
+根据所选规范确定后续的安装路径。
+
+### 步骤 2: 确定技能源
 
 询问用户技能来源：
 - **本地路径**: 已存在的技能目录

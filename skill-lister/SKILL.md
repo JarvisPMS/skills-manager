@@ -1,16 +1,16 @@
 ---
 name: skill-lister
-description: 列出和查看已安装的 Agent Skills。可以扫描默认技能目录或用户指定的自定义路径，显示技能的元数据和详细信息。当用户想要查看、浏览或搜索已安装的技能时使用。
+description: 列出和查看已安装的 Agent Skills。支持 AgentSkills、Claude Code、Codex 三种规范标准。可以扫描不同规范的默认技能目录或用户指定的自定义路径，显示技能的元数据和详细信息。当用户想要查看、浏览或搜索已安装的技能时使用。
 license: MIT
 metadata:
   author: tony
-  version: "1.0.0"
+  version: "2.0.0"
   category: management
 ---
 
 # Skill Lister - 技能列表查看器
 
-这个技能帮助您列出、查看和管理已安装的 Agent Skills。
+这个技能帮助您列出、查看和管理已安装的 Agent Skills。支持多种规范标准(AgentSkills、Claude Code、Codex)。
 
 ## 使用场景
 
@@ -19,6 +19,28 @@ metadata:
 - 用户想要了解某个技能的详细信息
 - 用户需要检查技能的安装位置和级别
 - 开发者想要验证技能是否正确安装
+- 用户需要查看特定规范标准(AgentSkills/Claude/Codex)的技能
+
+## 支持的规范标准
+
+本技能可以扫描和列出三种主流 Agent Skills 规范标准的技能:
+
+### 1. AgentSkills 标准
+扫描路径:
+- **用户级**: `~/.agent-skills/`
+- **项目级**: `<project-root>/.agent-skills/`
+- **系统级**: `C:\ProgramData\agent-skills\` (Windows) 或 `/usr/local/share/agent-skills/` (Unix)
+
+### 2. Claude Code 标准
+扫描路径:
+- **个人级**: `~/.claude/skills/`
+- **项目级**: `<project-root>/.claude/skills/`
+
+### 3. Codex 标准
+扫描路径:
+- **用户级**: `~/.codex/skills/`
+- **仓库级**: `<repo-root>/.codex/skills/`
+- **管理员级**: `/etc/codex/skills` (Unix)
 
 ## 功能特点
 
